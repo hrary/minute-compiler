@@ -1,3 +1,5 @@
+#include "cc.h"
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -51,58 +53,15 @@ char* read_file (const char *filename, long *size) {
     return buffer;
 }
 
-
 int main(int argc, char **argv) {
-
-    if (argc < 3) { 
-        fprintf(stderr, "usage: mycc <input.c> <output.s>\n"); 
-        return 1; 
-    }
-
+    if (argc < 2) { fprintf(stderr, "usage: mycc <file.c>\n"); return 1; }
     long size = 0;
     char *content = read_file(argv[1], &size);
-    if (content == NULL) {
-        fprintf(stderr, "Error reading file: %s\n", argv[1]);
-        return 1; 
-    }
-    fprintf(stdout, "File touched: %s", argv[1]);
-
-    fprintf(stdout, "File size: %ld bytes\n", size);
-    fprintf(stdout, "File content:\n%s\n", content);
-
-    long i;
-    int start = -1;
-    for (i=0; i<size; i++) {
-        if (isdigit((unsigned char)content[i])) {
-            start = i;
-            while (i < size && isdigit((unsigned char)content[i])) i++;
-            break;
-        }
-    }
-    if (start == -1) {
-        fprintf(stderr, "no numbers found\n");
-        return -1;
-    }
-    long number = strtol(content + start, NULL, 10);
-
-    FILE *output_file = fopen(argv[2], "w");
-    if (output_file == NULL) {
-        perror("Error opening file\n");
-        return 1; 
-    }
-    fprintf(output_file, 
-        "\t.text\n"
-        "\t.globl main\n"
-        "main:\n"
-        "\tpush %%rbp\n"
-        "\tmov %%rsp, %%rbp\n"
-        "\tmov $%ld, %%rax\n"
-        "\tpop %%rbp\n"
-        "\tret\n", number);
-
-    fclose(output_file);
-    fprintf(stdout, "File written: %s\n", argv[2]);
-    free(content);
-
+    if (!content) return 1;
+    Token *tok = tokenize(content);
+    if (argc > 2 && !strcmp(argv[2], "--dump-tokens")) { dump_tokens(tok); return 0; }
+    if (argc > 2 && !strcmp(argv[2], "--dump-ast")) { dump_ast(parse(tok), 0); return 0; }
+    Node *node = parse(tok);
+    codegen(node);
     return 0;
 }
