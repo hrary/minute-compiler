@@ -61,7 +61,7 @@ int main(int argc, char **argv) {
     Token *tok = tokenize(content);
     if (argc > 2 && !strcmp(argv[2], "--dump-tokens")) { dump_tokens(tok); return 0; }
     if (argc > 2 && !strcmp(argv[2], "--dump-ast")) { dump_ast(parse(tok), 0); return 0; }
-    Node *node = parse(tok);
-    codegen(node);
+    Function *fn = parse(tok);
+    codegen(fn);
     return 0;
 }

@@ -48,7 +48,7 @@ Token *tokenize(char *content) {
             continue;
         }
 
-        if (strchr("+-*/(){};", *p)) {
+        if (strchr("+-*/(){};=", *p)) {
             cur = cur->next = new_token(TK_PUNCT, p, 1);
             p++;
             continue;
