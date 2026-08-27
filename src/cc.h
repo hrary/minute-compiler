@@ -32,7 +32,14 @@ typedef enum {
     ND_VAR,
     ND_ASSIGN,
     ND_RETURN,
-    ND_EXPR_STMT
+    ND_EXPR_STMT,
+    ND_EQ,
+    ND_NE,
+    ND_LT,
+    ND_LE,
+    ND_IF,
+    ND_FOR,
+    ND_BLOCK
 } NodeType;
 
 typedef struct Obj {
@@ -43,7 +50,7 @@ typedef struct Obj {
 
 typedef struct Node {
     NodeType type;
-    struct Node *lhs, *rhs, *next;
+    struct Node *lhs, *rhs, *next, *cond, *then, *els, *init, *inc, *body;
     long val;
     Obj *var;
 } Node;

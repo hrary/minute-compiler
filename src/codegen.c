@@ -1,12 +1,20 @@
 #include "cc.h"
 #include <stdio.h>
 
+static void gen_expr(Node *node);
+static void gen_stmt(Node *node);
+
 static void gen_addr(Node *node) {
     if (node->type == ND_VAR) {
         printf("  lea %d(%%rbp), %%rax\n", node->var->offset);
         return;
     }
     error("not an lvalue");
+}
+
+static int counter(void) {
+    static int i = 0;
+    return ++i;
 }
 
 static void gen_expr(Node *node) {
@@ -32,6 +40,10 @@ static void gen_expr(Node *node) {
     case ND_SUB: printf("  sub %%rdi, %%rax\n"); return;
     case ND_MUL: printf("  imul %%rdi, %%rax\n"); return;
     case ND_DIV: printf("  cqo\n  idiv %%rdi\n"); return;
+    case ND_EQ: printf("  cmp %%rdi, %%rax\n  sete %%al\n  movzb %%al, %%rax\n"); return;
+    case ND_NE: printf("  cmp %%rdi, %%rax\n  setne %%al\n  movzb %%al, %%rax\n"); return;
+    case ND_LT: printf("  cmp %%rdi, %%rax\n  setl %%al\n  movzb %%al, %%rax\n"); return;
+    case ND_LE: printf("  cmp %%rdi, %%rax\n  setle %%al\n  movzb %%al, %%rax\n"); return;
     default: perror("invalid node");
     }
 }
@@ -46,6 +58,38 @@ static void gen_stmt(Node *node) {
     case ND_EXPR_STMT:
         if (node->lhs) gen_expr(node->lhs);
         return;
+    case ND_IF: {
+        int c = counter();
+        gen_expr(node->cond);
+        printf("  cmp $0, %%rax\n");
+        printf("  je .L.else.%d\n", c);
+        gen_stmt(node->then);
+        printf("  jmp .L.end.%d\n", c);
+        printf(".L.else.%d:\n", c);
+        if (node->els) gen_stmt(node->els);
+        printf(".L.end.%d:\n", c);
+        return;
+    }
+    case ND_FOR: {
+        int c = counter();
+        if (node->init) gen_stmt(node->init);
+        printf(".L.begin.%d:\n", c);
+        if (node->cond) {
+            gen_expr(node->cond);
+            printf("  cmp $0, %%rax\n");
+            printf("  je .L.end.%d\n", c);
+        }
+        gen_stmt(node->then);
+        if (node->inc) gen_expr(node->inc);
+        printf("  jmp .L.begin.%d\n", c);
+        printf(".L.end.%d:\n", c);
+        return;
+    }
+    case ND_BLOCK: {
+        for (Node *n = node->body; n; n = n->next)
+            gen_stmt(n);
+        return;
+    }
     default:
         error("invalid statement");
     }

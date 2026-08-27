@@ -22,6 +22,13 @@ static void convert_keywords(Token *tok) {
             t->type = TK_KEYWORD;
 }
 
+static int punct_len(char *p) {
+    static char *ops[] = {"==", "!=", "<=", ">="};
+    for (size_t i = 0; i < sizeof(ops)/sizeof(*ops); i++)
+        if (!strncmp(p, ops[i], 2)) return 2;
+    return strchr("+-*/(){};=<>,", *p) ? 1 : 0;
+}
+
 Token *tokenize(char *content) {
     Token head = {0};
     Token *cur = &head;
@@ -47,10 +54,11 @@ Token *tokenize(char *content) {
             cur = cur->next = new_token(TK_IDENT, start, p - start);
             continue;
         }
-
-        if (strchr("+-*/(){};=", *p)) {
-            cur = cur->next = new_token(TK_PUNCT, p, 1);
-            p++;
+        
+        int len = punct_len(p);
+        if (len) {
+            cur = cur->next = new_token(TK_PUNCT, p, len);
+            p += len;
             continue;
         }
 
