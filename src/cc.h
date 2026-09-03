@@ -39,18 +39,21 @@ typedef enum {
     ND_LE,
     ND_IF,
     ND_FOR,
-    ND_BLOCK
+    ND_BLOCK,
+    ND_FUNCALL
 } NodeType;
 
 typedef struct Obj {
     struct Obj *next;
     char *name;
     int offset;
+    struct Obj *param_next;
 } Obj;
 
 typedef struct Node {
     NodeType type;
-    struct Node *lhs, *rhs, *next, *cond, *then, *els, *init, *inc, *body;
+    struct Node *lhs, *rhs, *next, *cond, *then, *els, *init, *inc, *body, *args;
+    char *funcname;
     long val;
     Obj *var;
 } Node;
@@ -59,6 +62,9 @@ typedef struct Function {
     Node *body;
     Obj *locals;
     int size;
+    char *name;
+    Obj *params;
+    struct Function *next;
 } Function;
 
 Token *tokenize(char *content);

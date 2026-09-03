@@ -3,6 +3,8 @@
 
 static void gen_expr(Node *node);
 static void gen_stmt(Node *node);
+static char *argreg[] = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"};
+static Function *current_fn;
 
 static void gen_addr(Node *node) {
     if (node->type == ND_VAR) {
@@ -28,6 +30,19 @@ static void gen_expr(Node *node) {
         printf("  pop %%rdi\n");
         printf("  mov %%rax, (%%rdi)\n");
         return;
+    case ND_FUNCALL: {
+        int nargs = 0;
+        for (Node *arg = node->args; arg; arg = arg->next) {
+            gen_expr(arg);
+            printf("  push %%rax\n");
+            nargs++;
+        }
+        for (int i = nargs - 1; i >= 0; i--)
+            printf("  pop %s\n", argreg[i]);
+        printf("  mov $0, %%rax\n");
+        printf("  call %s\n", node->funcname);
+        return;
+    }
     default: break;
     }
     
@@ -53,7 +68,7 @@ static void gen_stmt(Node *node) {
     switch (node->type) {
     case ND_RETURN:
         gen_expr(node->lhs);
-        printf("  jmp .L.return\n");
+        printf("  jmp .L.return.%s\n", current_fn->name);
         return;
     case ND_EXPR_STMT:
         if (node->lhs) gen_expr(node->lhs);
@@ -97,17 +112,24 @@ static void gen_stmt(Node *node) {
 
 void codegen(Function *fn) {
     printf("  .text\n");
-    printf("  .globl main\n");
-    printf("main:\n");
-    printf("  push %%rbp\n");
-    printf("  mov %%rsp, %%rbp\n");
-    printf("  sub $%d, %%rsp\n", fn->size);
+    for (Function *f = fn; f; f = f->next) {
+        current_fn = f;
+        printf("  .globl %s\n", f->name);
+        printf("%s:\n", f->name);
+        printf("  push %%rbp\n");
+        printf("  mov %%rsp, %%rbp\n");
+        printf("  sub $%d, %%rsp\n", f->size);
+        
+        int i = 0;
+        for (Obj *p = f->params; p; p = p->param_next)
+            printf("  mov %s, %d(%%rbp)\n", argreg[i++], p->offset);
 
-    for (Node *n = fn->body; n; n = n->next)
-        gen_stmt(n);
+        for (Node *n = f->body; n; n = n->next)
+            gen_stmt(n);
 
-    printf(".L.return:\n");
-    printf("  mov %%rbp, %%rsp\n");
-    printf("  pop %%rbp\n");
-    printf("  ret\n");
+        printf(".L.return.%s:\n", f->name);
+        printf("  mov %%rbp, %%rsp\n");
+        printf("  pop %%rbp\n");
+        printf("  ret\n");
+    }
 }

@@ -183,12 +183,28 @@ static Node *primary(Token **rest, Token *tok) {
         return node;
     }
     if (tok->type == TK_IDENT) {
-        Obj *var = find_var(tok);
-        if (!var) error("undefined variable '%.*s'", tok->len, tok->loc);
-        Node *node = new_node(ND_VAR);
-        node->var = var;
-        *rest = tok->next;
-        return node;
+        if (equal(tok->next, "(")) {
+            Node *node = new_node(ND_FUNCALL);
+            node->funcname = strndup(tok->loc, tok->len);
+            tok = skip(tok->next, "(");
+            Node head = {0};
+            Node *cur = &head;
+            while (!equal(tok, ")")) {
+                if (cur != &head) tok = skip(tok, ",");
+                cur = cur->next = assign(&tok, tok);
+                cur->next = NULL;
+            }
+            node->args = head.next;
+            *rest = skip(tok, ")");
+            return node;
+        } else {
+            Obj *var = find_var(tok);
+            if (!var) error("undefined variable '%.*s'", tok->len, tok->loc);
+            Node *node = new_node(ND_VAR);
+            node->var = var;
+            *rest = tok->next;
+            return node;
+        }
     }
     error("expected an expression");
     return NULL;
@@ -262,23 +278,52 @@ static Node *stmt(Token **rest, Token *tok) {
     return node;
 }
 
-Function *parse(Token *tok) {
-    Function *fn = calloc(1, sizeof(Function));
-    current_fn = fn;
-
+static Function *function(Token **rest, Token *tok) {
+    current_fn = calloc(1, sizeof(Function));
+    
     tok = skip(tok, "int");
-    tok = tok->next;
-    tok = skip(tok, "(");
-    tok = skip(tok, ")");
-    tok = skip(tok, "{");
+    if (tok->type != TK_IDENT) 
+        error("expected a function name");
+    current_fn->name = strndup(tok->loc, tok->len);
+    tok = skip(tok->next, "(");
 
-    Node head = {0};
-    Node *cur = &head;
-    while (!equal(tok, "}"))
-        cur = cur->next = stmt(&tok, tok);
-    fn->body = head.next;
-    assign_offsets(fn);
-    return fn;
+    Obj head = {0};
+    Obj *cur = &head;
+    while (!equal(tok, ")")) {
+        if (cur != &head)
+            tok = skip(tok, ",");
+            
+        tok = skip(tok, "int");
+        if (tok->type != TK_IDENT) 
+            error("expected a parameter name");
+        
+        Obj *var = new_lvar(tok->loc, tok->len);
+        cur = cur->param_next = var;
+        tok = tok->next;
+    }
+    current_fn->params = head.param_next;
+    tok = skip(tok, ")");
+
+    tok = skip(tok, "{");
+    Node head_node = {0};
+    Node *cur_node = &head_node;
+    
+    while (!equal(tok, "}")) {
+        cur_node = cur_node->next = stmt(&tok, tok);
+    }
+    
+    current_fn->body = head_node.next;
+    assign_offsets(current_fn);
+    *rest = skip(tok, "}");
+    return current_fn;
+}
+
+Function *parse(Token *tok) {
+    Function head = {0};
+    Function *cur = &head;
+    while (tok->type != TK_EOF)
+        cur = cur->next = function(&tok, tok);
+    return head.next;
 }
 
 static void assign_offsets(Function *fn) {
@@ -292,7 +337,7 @@ static void assign_offsets(Function *fn) {
 
 void dump_ast_node(Node *node, int depth) {
     if (!node) return;
-    static const char *names[] = {"ADD", "SUB", "MUL", "DIV", "NUM", "VAR", "ASSIGN", "RETURN", "EXPR_STMT"};
+    static const char *names[] = {"ADD", "SUB", "MUL", "DIV", "NUM", "VAR", "ASSIGN", "RETURN", "EXPR_STMT", "FUNCALL", "EQ", "NE", "LT", "LE", "IF", "FOR", "BLOCK"};
     fprintf(stderr, "%*s%s", depth * 2, "", names[node->type]);
     if (node->type == ND_NUM) fprintf(stderr, " %ld", node->val);
     fprintf(stderr, "\n");
