@@ -1,0 +1,8 @@
+int ret3()
+{
+    return 3;
+}
+int main()
+{
+    return ret3();
+}
